@@ -16,10 +16,10 @@ openai = "^1.16.0"
 langchain-openai = "^0.1.1"
 pinecone-client = "^3.1.0"
 
-dat-core = {git = "https://github.com/dat-labs/dat-core", rev = "main", develop = true}
-verified-sources = {git = "https://github.com/dat-labs/verified-sources", rev = "main", develop = true}
-verified-generators = {git = "https://github.com/dat-labs/verified-generators", rev = "main", develop = true}
-verified-destinations = {git = "https://github.com/dat-labs/verified-destinations", rev = "main", develop = true}
+dat-core = {git = "ssh://git@github.com/dat-labs/dat-core", rev = "main", develop = true}
+verified-sources = {git = "ssh://git@github.com/dat-labs/verified-sources", rev = "main", develop = true}
+verified-generators = {git = "ssh://git@github.com/dat-labs/verified-generators", rev = "main", develop = true}
+verified-destinations = {git = "ssh://git@github.com/dat-labs/verified-destinations", rev = "main", develop = true}
 
 [build-system]
 requires = ["poetry-core"]
