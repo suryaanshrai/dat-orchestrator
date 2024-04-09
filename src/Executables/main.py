@@ -1,6 +1,4 @@
 '''
-Ref: https://docs.airbyte.com/understanding-airbyte/airbyte-protocol-docker
-
 Interfaces to be defined:
  - /path/to/executable read --config <config-file-path> --catalog <catalog-file-path> [--state <state-file-path>] > src_message_stream.json
  - cat src_message_stream.json | /path/to/executable generate --config <config-file-path> [--state <state-file-path>] > gen_message_stream.json
