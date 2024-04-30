@@ -88,7 +88,7 @@ def write(config, catalog):
         except json.decoder.JSONDecodeError as _e:
             # click.echo(f'{_e}: {line}', err=True)
             continue
-        if json_line['type'] not in ['RECORD', 'STATE']:
+        if json_line['type'] not in ['RECORD']:
             click.echo(line)
             continue
         rows_buffer.append(
