@@ -4,6 +4,7 @@ Entry point module for dat pipeline worker
 import os
 import json
 import shlex
+from uuid import uuid4
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile
 from celery import Celery
