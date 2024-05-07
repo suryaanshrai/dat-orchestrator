@@ -23,9 +23,10 @@ os.makedirs(TMP_DIR_LOCATION, exist_ok=True)
 
 class TelemetryMsg(BaseModel):
     connection_id: str
+    run_id: str
     dat_message: DatMessage
 
-def add_to_telemetry_q(connection_id: str, msg: str) -> None:
+def add_to_telemetry_q(connection_id: str, run_id: str, msg: str) -> None:
     """Will add the passed message string to
     telemetry queue: dat-telemetry-q
 
@@ -35,6 +36,7 @@ def add_to_telemetry_q(connection_id: str, msg: str) -> None:
     telemetry_celery_app.send_task(
         'dat_telemetry_task', (TelemetryMsg(
             connection_id=connection_id,
+            run_id=run_id,
             dat_message=msg).model_dump_json(), ), queue='dat-telemetry-q')
 
 
@@ -45,9 +47,12 @@ def worker(connection_str):
         connection_obj (str)
     '''
     connection = Connection.model_validate_json(connection_str)
+    # generating run_id as uuid
+    run_id = str(uuid4())
     # print(f'Received task with connection: {connection}')
     add_to_telemetry_q(
         connection_id=connection.id,
+        run_id=run_id,
         msg=DatMessage(
             type=Type.LOG,
             log=DatLogMessage(
@@ -73,13 +78,15 @@ def worker(connection_str):
                 except json.decoder.JSONDecodeError:
                     print(f'unable to parse JSON; rejecting message: {line_a.decode()}')
                     continue
-                if line_a_decoded_mdl.type.value.lower() != 'log':
-                    continue
+                # if line_a_decoded_mdl.type.value.lower() != 'log':
+                #     continue
                 add_to_telemetry_q(connection_id=connection.id,
+                                   run_id=run_id,
                                    msg=line_a_decoded)
 
     add_to_telemetry_q(
         connection_id=connection.id,
+        run_id=run_id,
         msg=DatMessage(
         type=Type.LOG,
         log=DatLogMessage(
