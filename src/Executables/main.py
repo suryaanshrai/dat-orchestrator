@@ -9,8 +9,7 @@ import sys
 import json
 from importlib import import_module
 import click
-from dat_core.pydantic_models.connector_specification import ConnectorSpecification
-from dat_core.pydantic_models.dat_catalog import DatCatalog
+from dat_core.pydantic_models import ConnectorSpecification, DatCatalog, StreamState
 
 MAX_LEN_ROWS_BUFFER = 999
 
@@ -32,14 +31,22 @@ def discover(config):
 @cli.command()
 @click.option('--config', '-cfg', type=click.File(), required=True)
 @click.option('--catalog', '-ctlg', type=click.File(), required=True)
-def read(config, catalog):
+@click.option('--combined-state', '-cmb-state', type=click.File(), required=False)
+def read(config, catalog, combined_state):
+    if not combined_state:
+        combined_state = {}
+    else:
+        combined_state = json.loads(combined_state.read())
     config_mdl = ConnectorSpecification.model_validate_json(config.read())
     SourceClass = getattr(
         import_module(f'verified_sources.{config_mdl.module_name}.source'), config_mdl.name)
-
-    catalog_mdl = DatCatalog.model_validate_json(catalog.read())
+    CatalogClass = getattr(
+        import_module(f'verified_sources.{config_mdl.module_name}.catalog'), f'{config_mdl.name}Catalog')
+    _catalog_read = catalog.read()
+    catalog_mdl = CatalogClass.model_validate_json(_catalog_read)
+    combined_state_mdl = {_k: StreamState(**_v) for (_k, _v) in combined_state.items()}
     doc_generator = SourceClass().read(
-        config=config_mdl, catalog=catalog_mdl)
+        config=config_mdl, catalog=catalog_mdl, state=combined_state_mdl)
     for doc in doc_generator:
         click.echo(doc.model_dump_json())
 

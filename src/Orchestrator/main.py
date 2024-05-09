@@ -1,13 +1,16 @@
 import os
+import json
 import shlex
 from multiprocessing import Process, Queue
 from queue import Empty
 from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE
 import click
-from celery import Celery
 from typing import Mapping
 from dat_core.pydantic_models.connection import Connection
+import dat_client
+from dat_client.configuration import Configuration
+from dat_client.rest import ApiException
 
 
 MAX_LEN_ROWS_BUFFER = 999
@@ -16,7 +19,7 @@ _CMD_PREFIX = 'python src/Executables/main.py'
 _CMD_GEN_MAP = {
     'source': {
         'cmd': 'read',
-        'args': ['ctlg', 'cfg'],
+        'args': ['ctlg', 'cfg', 'cmb-state'],
     },
     'generator': {
         'cmd': 'generate',
@@ -70,6 +73,16 @@ def _gen_args(arg_value: str, short_name: str = None, long_name: str = None) -> 
 def gen_tmp_file(func):
     def wrapper(*args):
         connection_mdl = Connection.model_validate_json(args[0].read())
+        with dat_client.ApiClient(Configuration(host="http://api:8000")) as api_client:
+            conn_run_log_api_instance = dat_client.ConnectionRunLogsApi(
+                api_client)
+            try:
+                src_state_response = conn_run_log_api_instance.get_combined_stream_states_connection_run_logs_connection_id_stream_states_get(
+                    connection_id=connection_mdl.id,
+                )
+            except ApiException as e:
+                print(
+                    "Exception when calling ConnectionRunLogsApi->add_connection_run_log_connection_run_logs_post: %s\n" % e)
         with NamedTemporaryFile(mode='w', prefix='cnctn_src_',
                                 dir=TMP_DIR_LOCATION) as src_tmp_file:
             src_tmp_file.write(
@@ -80,23 +93,27 @@ def gen_tmp_file(func):
                 src_ctlg_tmp_file.write(
                     connection_mdl.catalog.model_dump_json())
                 src_ctlg_tmp_file.flush()
-                with NamedTemporaryFile(mode='w', prefix='cnctn_gen_',
-                                        dir=TMP_DIR_LOCATION) as gen_tmp_file:
-                    gen_tmp_file.write(
-                        connection_mdl.generator.model_dump_json())
-                    gen_tmp_file.flush()
-                    with NamedTemporaryFile(mode='w', prefix='cnctn_dst_',
-                                            dir=TMP_DIR_LOCATION) as dst_tmp_file:
-                        dst_tmp_file.write(
-                            connection_mdl.destination.model_dump_json())
-                        dst_tmp_file.flush()
+                with NamedTemporaryFile(mode='w', prefix='cnctn_src_',
+                                    dir=TMP_DIR_LOCATION) as src_state_tmp_file:
+                    src_state_tmp_file.write(json.dumps({_k: _v.model_dump(mode='json') for (_k, _v) in src_state_response.items()}))
+                    src_state_tmp_file.flush()
+                    with NamedTemporaryFile(mode='w', prefix='cnctn_gen_',
+                                            dir=TMP_DIR_LOCATION) as gen_tmp_file:
+                        gen_tmp_file.write(
+                            connection_mdl.generator.model_dump_json())
+                        gen_tmp_file.flush()
                         with NamedTemporaryFile(mode='w', prefix='cnctn_dst_',
-                                                dir=TMP_DIR_LOCATION) as dst_ctlg_tmp_file:
-                            dst_ctlg_tmp_file.write(
-                                connection_mdl.catalog.model_dump_json())
-                            dst_ctlg_tmp_file.flush()
-                            func(*args, src_tmp_file.name, src_ctlg_tmp_file.name,
-                                 gen_tmp_file.name, dst_tmp_file.name, dst_ctlg_tmp_file.name)
+                                                dir=TMP_DIR_LOCATION) as dst_tmp_file:
+                            dst_tmp_file.write(
+                                connection_mdl.destination.model_dump_json())
+                            dst_tmp_file.flush()
+                            with NamedTemporaryFile(mode='w', prefix='cnctn_dst_',
+                                                    dir=TMP_DIR_LOCATION) as dst_ctlg_tmp_file:
+                                dst_ctlg_tmp_file.write(
+                                    connection_mdl.catalog.model_dump_json())
+                                dst_ctlg_tmp_file.flush()
+                                func(*args, src_state_tmp_file.name, src_tmp_file.name, src_ctlg_tmp_file.name,
+                                    gen_tmp_file.name, dst_tmp_file.name, dst_ctlg_tmp_file.name)
     return wrapper
 
 
@@ -141,12 +158,13 @@ def dst_cmd_proc(vectors_queue: Queue, dst_cmd: str) -> None:
 
 
 @gen_tmp_file
-def process(config, src_file, src_ctlg_file, gen_file, dst_file, dst_ctlg_file):
+def process(config, state_file, src_file, src_ctlg_file, gen_file, dst_file, dst_ctlg_file):
     src_cmd = _gen_cmd(
         actor_type='source',
         args={
             'ctlg': src_ctlg_file,
             'cfg': src_file,
+            'cmb-state': state_file,
         }
     )
     gen_cmd = _gen_cmd(
