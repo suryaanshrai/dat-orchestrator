@@ -37,7 +37,11 @@ def read(config, catalog, combined_state):
         combined_state = {}
     else:
         combined_state = json.loads(combined_state.read())
-    config_mdl = ConnectorSpecification.model_validate_json(config.read())
+    _config = config.read()
+    base_config_mdl = ConnectorSpecification.model_validate_json(_config)
+    ConnectorSpecificationClass = getattr(
+        import_module(f'verified_sources.{base_config_mdl.module_name}.specs'), f'{base_config_mdl.name}Specification')
+    config_mdl = ConnectorSpecificationClass.model_validate_json(_config)
     SourceClass = getattr(
         import_module(f'verified_sources.{config_mdl.module_name}.source'), config_mdl.name)
     CatalogClass = getattr(

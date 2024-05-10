@@ -76,6 +76,7 @@ def gen_tmp_file(func):
         with dat_client.ApiClient(Configuration(host="http://api:8000")) as api_client:
             conn_run_log_api_instance = dat_client.ConnectionRunLogsApi(
                 api_client)
+            src_state_response = {}
             try:
                 src_state_response = conn_run_log_api_instance.get_combined_stream_states_connection_run_logs_connection_id_stream_states_get(
                     connection_id=connection_mdl.id,
